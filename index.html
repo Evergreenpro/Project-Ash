@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <title>Ashton | Bio</title>
+    <meta property="og:title" content="Ashton | Bio">
+    <meta property="og:description" content="Strawberries!">
+    <meta property="og:image" content="icon.jpg">
+    <meta name="theme-color" content="#030303">
+    
+    <link rel="icon" id="dynamic-favicon" href="icon.jpg" type="image/jpeg">
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/color-thief/2.3.0/color-thief.umd.js"></script>
+    <style>
+        * { 
+            box-sizing: border-box; 
+            user-select: none; 
+            -webkit-user-drag: none; 
+            outline: none;
+        }
+        
+        body, html {
+            margin: 0; padding: 0; height: 100%;
+            background-color: #030303; color: #ffffff;
+            font-family: 'Segoe UI', Roboto, sans-serif;
+            display: flex; justify-content: center; 
+            align-items: center; 
+            overflow: hidden;
+        }
+
+        /* --- AMBILIGHT --- */
+        #ambilight-canvas {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            z-index: 1; filter: blur(100px) brightness(0.4) saturate(1.4);
+            opacity: 0; transition: opacity 2s ease; pointer-events: none;
+        }
+        .ambilight-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle, transparent 20%, rgba(3, 3, 3, 0.8) 80%);
+            z-index: 2; pointer-events: none;
+        }
+
+        /* --- LOGIN SCREEN --- */
+        #enter-screen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #000; display: flex; justify-content: center;
+            align-items: center; z-index: 999; cursor: pointer;
+            transition: opacity 0.8s ease;
+        }
+
+        /* --- CONTENT --- */
+        .content-wrapper {
+            position: relative; z-index: 10;
+            display: flex; flex-direction: column; align-items: center;
+            width: 100%; justify-content: center;
+            opacity: 0; 
+            transform: translateY(70px) scale(0.75);
+            transition: opacity 1s ease, transform 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+            will-change: transform, opacity;
+        }
+
+        .visible-content { 
+            opacity: 1 !important; 
+            transform: translateY(50px) scale(0.75) !important; 
+        }
+
+        .content-wrapper.spotify-active {
+            transform: translateY(0px) scale(0.75) !important;
+        }
+
+        .avatar {
+            width: 120px; height: 120px; border-radius: 50%;
+            object-fit: cover; margin-bottom: 20px;
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.8);
+        }
+
+        h1 { 
+            font-size: 36px; letter-spacing: 8px; margin: 0; 
+            text-transform: uppercase; color: #fff; text-align: center;
+            position: relative; cursor: default; height: 48px; 
+            display: flex; justify-content: center; align-items: center;
+        }
+
+        .nick-default, .nick-hover {
+            transition: opacity 0.6s ease, transform 0.6s ease;
+            position: absolute; white-space: nowrap;
+        }
+
+        .nick-hover {
+            opacity: 0; transform: scale(0.85);
+            color: #c394f8; text-shadow: 0 0 10px rgba(195, 148, 248, 0.4);
+        }
+
+        h1:hover .nick-default { opacity: 0; transform: scale(1.1); }
+        h1:hover .nick-hover { opacity: 1; transform: scale(1); }
+
+        .status { font-size: 14px; color: #ccc; letter-spacing: 3px; margin: 10px 0 20px 0; text-transform: uppercase; }
+
+        /* --- SPOTIFY --- */
+        .spotify-wrapper {
+            display: grid; grid-template-rows: 0fr;
+            transition: grid-template-rows 0.8s cubic-bezier(0.4, 0, 0.2, 1), 
+                        margin-bottom 0.8s cubic-bezier(0.4, 0, 0.2, 1), 
+                        opacity 0.6s ease;
+            width: 380px; opacity: 0; margin-bottom: 0;
+        }
+
+        .spotify-wrapper.active { 
+            grid-template-rows: 1fr; opacity: 1; margin-bottom: 35px;
+        }
+
+        .spotify-inner { overflow: hidden; display: flex; flex-direction: column; width: 100%; }
+
+        .now-playing-text {
+            font-size: 9px; text-transform: uppercase; letter-spacing: 2px;
+            color: rgba(255, 255, 255, 0.4); margin-left: 5px; margin-bottom: 8px;
+        }
+
+        #spotify-container {
+            display: flex; align-items: center; width: 100%;
+            background: rgba(255, 255, 255, 0.07); backdrop-filter: blur(15px);
+            padding: 15px 25px; border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            position: relative; overflow: hidden;
+        }
+
+        .track-art {
+            width: 65px; height: 65px; border-radius: 10px;
+            margin-right: 20px; 
+            margin-left: -7px; /* СДВИНУЛ ЕЩЕ НА 2 ПИКСЕЛЯ ВЛЕВО */
+            box-shadow: 0 5px 15px rgba(0,0,0,0.4);
+            object-fit: cover; opacity: 1; transition: opacity 0.5s ease;
+        }
+
+        .track-info { display: flex; flex-direction: column; overflow: hidden; text-align: left; z-index: 1; }
+        .track-name { font-size: 16px; font-weight: 700; color: #fff; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .track-artist { font-size: 13px; color: #1DB954; transition: color 0.5s ease; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 8px; }
+
+        .progress-bg {
+            position: absolute; bottom: 0; left: 0; width: 100%; height: 3px;
+            background: rgba(255, 255, 255, 0.05);
+        }
+        #spotify-progress {
+            height: 100%; width: 0%;
+            background: #1DB954; 
+            /* ПЛАВНОСТЬ: добавлена небольшая задержка для sine-эффекта */
+            transition: width 0.1s linear, background 0.5s ease; 
+            will-change: width;
+        }
+
+        /* --- SOCIAL ROW --- */
+        .social-row { 
+            display: flex; justify-content: center; gap: 40px; 
+            margin-bottom: 40px; width: 100%; height: 30px;
+        }
+        .icon-link { color: #aaa; transition: 0.3s; display: flex; align-items: center; }
+        .icon-link svg { width: 30px; height: 30px; fill: currentColor; }
+        .icon-link:hover { color: #fff; transform: scale(1.2); }
+
+        /* --- MEDIA --- */
+        .main-media-block { 
+            width: 100%; max-width: 800px; position: relative; border-radius: 12px;
+            box-shadow: 0 25px 80px rgba(0, 0, 0, 1); cursor: pointer;
+            overflow: hidden;
+        }
+        .video-wrapper { width: 100%; position: relative; }
+        video { width: 100%; display: block; }
+
+        .video-controls-overlay {
+            position: absolute; bottom: 0; left: 0; width: 100%; height: 60px;
+            background: linear-gradient(to top, rgba(0,0,0,0.6) 0%, transparent 100%);
+            display: flex; align-items: center; justify-content: flex-start;
+            padding: 0 20px;
+            opacity: 0; transition: opacity 0.3s ease;
+            pointer-events: none;
+        }
+        .main-media-block:hover .video-controls-overlay { opacity: 1; }
+        
+        .play-pause-btn {
+            background: none; width: 32px; height: 32px;
+            display: flex; justify-content: center; align-items: center;
+            border: none; pointer-events: auto; margin-right: 15px;
+            transition: transform 0.2s ease;
+        }
+        .play-pause-btn:hover { transform: scale(1.1); }
+        .play-pause-btn svg { width: 22px; height: 22px; fill: white; }
+
+        .volume-container { display: flex; align-items: center; gap: 10px; pointer-events: auto; }
+        .volume-icon { width: 18px; height: 18px; fill: #fff; opacity: 0.8; }
+
+        input[type=range] { 
+            -webkit-appearance: none; width: 80px; height: 3px; 
+            background: rgba(255, 255, 255, 0.2); outline: none; border-radius: 2px;
+        }
+        input[type=range]::-webkit-slider-thumb { 
+            -webkit-appearance: none; width: 12px; height: 12px; 
+            border-radius: 50%; background: #fff; cursor: pointer; 
+            box-shadow: 0 0 5px rgba(0,0,0,0.5);
+        }
+
+        #custom-tooltip {
+            position: fixed; pointer-events: none; 
+            background: rgba(20, 20, 20, 0.85); backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.1); color: #fff;
+            padding: 8px 14px; border-radius: 8px; font-size: 11px;
+            text-transform: uppercase; letter-spacing: 1.5px; opacity: 0;
+            transform: scale(0.9); transition: opacity 0.2s ease, transform 0.2s ease;
+            z-index: 1000; white-space: nowrap; will-change: opacity, transform;
+        }
+        #custom-tooltip.show { opacity: 1; transform: scale(1); }
+
+        @keyframes breathe { 0%, 100% { opacity: 0.3; } 50% { opacity: 0.7; } }
+    </style>
+</head>
+<body>
+
+    <div id="custom-tooltip">Link</div>
+    <canvas id="ambilight-canvas"></canvas>
+    <div class="ambilight-overlay"></div>
+
+    <div id="enter-screen" onclick="startBio()">
+        <p style="color: #444; letter-spacing: 0.4em; text-transform: uppercase; animation: breathe 3s infinite ease-in-out;">[ click to enter ]</p>
+    </div>
+
+    <div class="content-wrapper" id="content">
+        <img src="icon.jpg" alt="Avatar" class="avatar">
+        <h1>
+            <span class="nick-default">Ashton</span>
+            <span class="nick-hover"><ash!></span>
+        </h1>
+        <div class="status">epicenter of happiness</div>
+
+        <div id="spotify-wrapper" class="spotify-wrapper">
+            <div class="spotify-inner">
+                <div class="now-playing-text">Now Playing</div>
+                <div id="spotify-container">
+                    <img id="spotify-art" src="" class="track-art" alt="" crossorigin="anonymous">
+                    <div class="track-info">
+                        <div id="spotify-name" class="track-name">...</div>
+                        <div id="spotify-artist" class="track-artist">...</div>
+                    </div>
+                    <div class="progress-bg">
+                        <div id="spotify-progress"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="social-row">
+            <a href="https://open.spotify.com/user/31k2pmaui63mayzriumadb6ranme" target="_blank" class="icon-link" data-tip="Spotify Profile">
+                <svg viewBox="0 0 496 512"><path d="M248 8C111.1 8 0 119.1 0 256s111.1 248 248 248 248-111.1 248-248S384.9 8 248 8zm100.7 364.7c-4.3 7.1-13.6 9.2-20.7 4.9-51.4-31.5-116.1-38.6-192.3-21.2-8.1 1.9-16.2-3.1-18.1-11.3-1.9-8.1 3.1-16.2 11.3-18.1 84.5-19.3 156.6-11 214.4 24.4 7.2 4.4 9.3 13.6 5.4 21.2zm26.3-68.8c-5.4 8.8-17.1 11.7-25.9 6.2-58.8-36.1-148.4-46.6-217.9-25.5-10 3.1-20.5-2.6-23.6-12.6-3.1-10 2.6-20.5 12.6-23.6 79.5-24.1 178.2-12.2 245.5 29.1 8.9 5.5 11.8 17.1 6.3 26.2zm2.3-71c-70.5-41.9-187-45.8-254.3-25.4-10.8 3.3-22.3-2.7-25.6-13.5-3.3-10.8 2.7-22.3 13.5-25.6 77.5-23.5 206.5-18.9 288 29.5 9.7 5.8 12.9 18.3 7.2 28-5.8 9.7-18.3 12.9-28.8 7z"/></svg>
+            </a><a href="https://discord.com/users/741303253324791858" target="_blank" class="icon-link" data-tip="Discord">
+                <svg viewBox="0 0 640 512"><path d="M524.5 69.8a503.3 503.3 0 0 0 -124.2-38.5 2.5 2.5 0 0 0 -2.6 1.2 346.5 346.5 0 0 0 -15.3 31.4 464.5 464.5 0 0 0 -139.1 0 338.8 338.8 0 0 0 -15.4-31.4 2.5 2.5 0 0 0 -2.6-1.2 502.8 502.8 0 0 0 -124.2 38.5 2.5 2.5 0 0 0 -1 1c-80.1 119.8-102.1 236.7-91.1 352a2.6 2.6 0 0 0 1 1.8 507.7 507.7 0 0 0 152.8 77.2 2.5 2.5 0 0 0 2.7-1 353.7 353.7 0 0 0 31.5-51.2 2.5 2.5 0 0 0 -1.4-3.5 330.3 330.3 0 0 1 -48.5-23.1 2.5 2.5 0 0 1 -.2-4.1c3.2-2.4 6.4-4.9 9.5-7.5a2.5 2.5 0 0 1 2.6-.3c101.4 46.4 211 46.4 311.3 0a2.5 2.5 0 0 1 2.6 .3c3.1 2.6 6.3 5 9.5 7.5a2.5 2.5 0 0 1 -.2 4.1 323.7 323.7 0 0 1 -48.5 23.1 2.5 2.5 0 0 0 -1.4 3.5 362.1 362.1 0 0 0 31.5 51.2 2.5 2.5 0 0 0 2.7 1 506.7 506.7 0 0 0 152.8-77.2 2.5 2.5 0 0 0 1-1.8c12.5-131 8.8-246.9-91.1-352a2.5 2.5 0 0 0 -1-1zM215.8 358.7c-30.2 0-55.1-27.7-55.1-61.7s24.4-61.7 55.1-61.7 55.6 28.2 55.1 61.7c0 34-24.4 61.7-55.1 61.7zm210.4 0c-30.2 0-55.1-27.7-55.1-61.7s24.4-61.7 55.1-61.7 55.6 28.2 55.1 61.7c0 34-24.4 61.7-55.1 61.7z"/></svg>
+            </a>
+            <a href="https://www.youtube.com/@AshtonLezz" target="_blank" class="icon-link" data-tip="YouTube">
+                <svg viewBox="0 0 576 512"><path d="M549.7 124.1c-6.3-23.7-24.8-42.3-48.3-48.6C458.8 64 288 64 288 64S117.2 64 74.6 75.5c-23.5 6.3-42 24.9-48.3 48.6-11.4 42.9-11.4 132.3-11.4 132.3s0 89.4 11.4 132.3c6.3 23.7 24.8 41.5 48.3 47.8C117.2 448 288 448 288 448s170.8 0 213.4-11.5c23.5-6.3 42-24.2 48.3-47.8 11.4-42.9 11.4-132.3 11.4-132.3s0-89.4-11.4-132.3zm-317.5 213.5V174.4l142.7 81.6-142.7 81.6z"/></svg>
+            </a>
+            <a href="https://www.tiktok.com/@evergreenpr0" target="_blank" class="icon-link" data-tip="TikTok">
+                <svg viewBox="0 0 448 512"><path d="M448 209.9a210.1 210.1 0 0 1 -122.8-39.3V349.4A162.6 162.6 0 1 1 185 188.3V278.2a74.6 74.6 0 1 0 52.2 71.2V0l88 0a121.2 121.2 0 0 0 1.9 22.1 122.2 122.2 0 0 0 108.2 0V112.5a122.2 122.2 0 0 0 -36.4 12.8A121.2 121.2 0 0 1 448 209.9z"/></svg>
+            </a>
+        </div>
+
+        <div class="main-media-block" onclick="toggleVideo()">
+            <div class="video-wrapper">
+                <video id="video-edit" loop playsinline preload="auto">
+                    <source src="video.mp4" type="video/mp4">
+                </video>
+                <div class="video-controls-overlay">
+                    <div class="play-pause-btn">
+                        <svg viewBox="0 0 24 24">
+                            <path id="btn-path" d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+                        </svg>
+                    </div>
+                    <div class="volume-container" onclick="event.stopPropagation()">
+                        <svg class="volume-icon" viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+                        <input type="range" id="volume-slider" min="0" max="1" step="0.01" value="0.5">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const DISCORD_ID = '741303253324791858';
+        const video = document.getElementById('video-edit');
+        const btnPath = document.getElementById('btn-path');
+        const content = document.getElementById('content');
+        const enterScreen = document.getElementById('enter-screen');
+        const spotifyWrapper = document.getElementById('spotify-wrapper');
+        const spotifyArt = document.getElementById('spotify-art');
+        const spotifyArtist = document.getElementById('spotify-artist');
+        const spotifyName = document.getElementById('spotify-name');
+        const spotifyProgressBar = document.getElementById('spotify-progress');
+        const dynamicFavicon = document.getElementById('dynamic-favicon');
+        const ambCanvas = document.getElementById('ambilight-canvas');
+        const ambCtx = ambCanvas.getContext('2d', { alpha: false });
+        const colorThief = new ColorThief();
+
+        let lastTrackId = '';
+        let spotifyData = null;
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ!<>-_\\/[]{}—=+*^?#'; 
+
+        function toggleVideo() {
+            if (video.paused) {
+                video.play();
+                btnPath.setAttribute('d', 'M6 19h4V5H6v14zm8-14v14h4V5h-4z'); 
+            } else {
+                video.pause();
+                btnPath.setAttribute('d', 'M8 5v14l11-7z'); 
+            }
+        }
+
+       function scrambleText(element, newText) {
+            clearInterval(element.interval);
+            let currentText = element.innerText;
+            let frame = 0;
+            const maxFrames = 40; 
+            const frameDelay = 30; 
+
+            element.interval = setInterval(() => {
+                let result = '';
+                let progress = frame / maxFrames;
+                let currentLength = Math.round(currentText.length + (newText.length - currentText.length) * progress);
+
+                for (let i = 0; i < currentLength; i++) {
+                    if (progress > 0.7 && i < newText.length && Math.random() < (progress - 0.5) * 2) {
+                        result += newText[i];
+                    } else {
+                        result += chars[Math.floor(Math.random() * chars.length)];
+                    }
+                }
+
+                element.innerText = result;
+                if (frame >= maxFrames) {
+                    element.innerText = newText;
+                    clearInterval(element.interval);
+                }
+                frame++;
+            }, frameDelay);
+        }
+
+        async function updateSpotify() {
+            if (document.hidden) return;
+            try {
+                const response = await fetch(`https://api.lanyard.rest/v1/users/${DISCORD_ID}`);
+                const result = await response.json();
+                
+                if (result.success && result.data.listening_to_spotify && result.data.spotify) {
+                    spotifyData = result.data.spotify;
+                    const s = spotifyData;
+
+                    if (s.track_id !== lastTrackId) {
+                        spotifyArt.style.opacity = 0; 
+                        setTimeout(() => {
+                            spotifyArt.src = s.album_art_url || '';
+                            dynamicFavicon.href = s.album_art_url || 'icon.jpg'; 
+                            spotifyArt.onload = () => { 
+                                spotifyArt.style.opacity = 1; 
+                                try {
+                                    const color = colorThief.getColor(spotifyArt);
+                                    const rgb = `rgb(${color[0]}, ${color[1]}, ${color[2]})`;
+                                    spotifyArtist.style.color = rgb;
+                                    spotifyProgressBar.style.background = rgb;
+                                } catch (e) { 
+                                    spotifyArtist.style.color = '#1DB954';
+                                    spotifyProgressBar.style.background = '#1DB954';
+                                }
+                            };
+                        }, 500); 
+                        scrambleText(spotifyName, s.song || '...');
+                        scrambleText(spotifyArtist, s.artist || '...');
+                        lastTrackId = s.track_id;
+                    }
+                    if (!spotifyWrapper.classList.contains('active')) {
+                        spotifyWrapper.classList.add('active');
+                        content.classList.add('spotify-active');
+                    }
+                } else {
+                    spotifyData = null;
+                    if (spotifyWrapper.classList.contains('active')) {
+                        spotifyWrapper.classList.remove('active');
+                        content.classList.remove('spotify-active');
+                        dynamicFavicon.href = 'icon.jpg'; 
+                        lastTrackId = '';
+                    }
+                }
+            } catch (e) {}
+        }
+
+        function animateProgress() {
+            if (spotifyData && spotifyData.timestamps) {
+                const start = spotifyData.timestamps.start;
+                const end = spotifyData.timestamps.end;
+                const now = Date.now();
+                // Рассчитываем процент с точностью до миллисекунд
+                const percent = Math.min(100, Math.max(0, ((now - start) / (end - start)) * 100));
+                spotifyProgressBar.style.width = percent + '%';
+            }
+            requestAnimationFrame(animateProgress);
+        }
+
+        setInterval(updateSpotify, 2000);
+        animateProgress();
+
+        function drawAmbilight() {
+            if (!video.paused && !video.ended) ambCtx.drawImage(video, 0, 0, ambCanvas.width, ambCanvas.height);
+            requestAnimationFrame(drawAmbilight);
+        }
+
+        function startBio() {
+            enterScreen.style.opacity = '0';
+            updateSpotify();
+            setTimeout(() => {
+                enterScreen.style.display = 'none';
+                content.classList.add('visible-content');
+                ambCanvas.width = 64; ambCanvas.height = 36; 
+                video.muted = false; video.volume = 0.5;
+                video.play().then(() => { ambCanvas.style.opacity = "1"; drawAmbilight(); });
+            }, 800);
+        }
+
+        document.getElementById('volume-slider').addEventListener('input', (e) => { video.volume = e.target.value; });
+
+        const tooltip = document.getElementById('custom-tooltip');
+        document.querySelectorAll('.icon-link').forEach(link => {
+            link.addEventListener('mouseenter', () => { tooltip.innerText = link.getAttribute('data-tip'); tooltip.classList.add('show'); });
+            link.addEventListener('mousemove', (e) => { tooltip.style.left = (e.clientX + 20) + 'px'; tooltip.style.top = (e.clientY + 20) + 'px'; });
+            link.addEventListener('mouseleave', () => { tooltip.classList.remove('show'); });
+        });
+    </script>
+</body>
+</html>
