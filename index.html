@@ -235,7 +235,7 @@
         <div id="spotify-wrapper" class="spotify-wrapper">
             <div class="spotify-inner">
                 <div class="now-playing-text">Now Playing</div>
-                <div id="spotify-container">
+                <div id="spotify-container" onclick="if(spotifyData) window.open(spotifyData.url, '_blank')">
                     <img id="spotify-art" src="" class="track-art" alt="" crossorigin="anonymous">
                     <div class="track-info">
                         <div id="spotify-name" class="track-name">...</div>
@@ -401,6 +401,7 @@
                     song:          d.item.name,
                     artist:        d.item.artists.map(a => a.name).join(', '),
                     album_art_url: d.item.album.images[0]?.url,
+                    url:           d.item.external_urls.spotify,
                     timestamps: {
                         start: Date.now() - d.progress_ms,
                         end:   Date.now() - d.progress_ms + d.item.duration_ms,
