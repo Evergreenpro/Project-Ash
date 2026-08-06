@@ -313,7 +313,35 @@
         async function fetchLyrics(title, artist) {
             const res = await fetch(`https://lrclib.net/api/get?track_name=${encodeURIComponent(title)}&artist_name=${encodeURIComponent(artist)}`);
             const data = await res.json();
-            return data.plainLyrics || null;
+            return data.syncedLyrics || null;
+        }
+
+        function parseLRC(lrc) {
+            return lrc.split('\n').map(line => {
+                const match = line.match(/\[(\d+):(\d+\.\d+)\](.*)/);
+                if (!match) return null;
+                const time = parseInt(match[1]) * 60 + parseFloat(match[2]);
+                return { time, text: match[3].trim() };
+            }).filter(Boolean);
+        }
+        
+        let parsedLyrics = [];
+        
+        function highlightLyric() {
+            if (!parsedLyrics.length || !spotifyData?.timestamps) return;
+            const elapsed = (Date.now() - spotifyData.timestamps.start) / 1000;
+            let current = 0;
+            for (let i = 0; i < parsedLyrics.length; i++) {
+                if (parsedLyrics[i].time <= elapsed) current = i;
+            }
+            const box = document.getElementById('lyrics-box');
+            box.innerHTML = parsedLyrics.map((l, i) =>
+                `<div style="transition:0.4s;opacity:${i === current ? 1 : 0.3};font-size:${i === current ? '14px' : '12px'};font-weight:${i === current ? 700 : 400}">${l.text}</div>`
+            ).join('');
+            // scroll current line into view
+            const lines = box.querySelectorAll('div');
+            if (lines[current]) lines[current].scrollIntoView({ block: 'center', behavior: 'smooth' });
+            requestAnimationFrame(highlightLyric);
         }
         function toggleVideo() {
             if (video.paused) {
@@ -438,8 +466,14 @@
                     lastTrackId = s.track_id;
                     fetchLyrics(s.song, s.artist).then(lyrics => {
                         const box = document.getElementById('lyrics-box');
-                        if (lyrics) { box.innerText = lyrics; box.style.display = 'block'; }
-                        else { box.style.display = 'none'; }
+                        if (lyrics) {
+                            parsedLyrics = parseLRC(lyrics);
+                            box.style.display = 'block';
+                            highlightLyric();
+                        } else {
+                            parsedLyrics = [];
+                            box.style.display = 'none';
+                        }
                     });
                 }
                 if (!spotifyWrapper.classList.contains('active')) {
