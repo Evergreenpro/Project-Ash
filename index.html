@@ -14,6 +14,7 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/color-thief/2.3.0/color-thief.umd.js"></script>
     <style>
+        #lyrics-box::-webkit-scrollbar { display: none; }
         * { 
             box-sizing: border-box; 
             user-select: none; 
@@ -248,7 +249,7 @@
             </div>
         </div>
         
-<div id="lyrics-box" style="scrollbar-width: none; ::-webkit-scrollbar { display: none; } width:380px; max-height:80px; overflow-y:auto; color:#aaa; font-size:12px; margin-top:10px; line-height:1.8; text-align:center; display:none;"></div>
+<div id="lyrics-box" style="width:380px; height:80px; overflow:hidden; color:#aaa; font-size:12px; margin-top:10px; line-height:1.8; text-align:center; display:none; display:flex; flex-direction:column; justify-content:center; align-items:center;"></div>
         
         <div class="social-row">
             <a href="https://open.spotify.com/user/31k2pmaui63mayzriumadb6ranme" target="_blank" class="icon-link" data-tip="Spotify Profile">
@@ -335,10 +336,14 @@
                 if (parsedLyrics[i].time <= elapsed) current = i;
             }
             const box = document.getElementById('lyrics-box');
-            box.innerHTML = parsedLyrics.map((l, i) =>
-                `<div style="transition:opacity 0.4s ease, font-size 0.4s ease, transform 0.4s ease;opacity:${i === current ? 1 : 0.3};font-size:${i === current ? '14px' : '12px'};font-weight:${i === current ? 700 : 400};transform:${i === current ? 'scale(1.05)' : 'scale(1)'}">${l.text}</div>`
-            ).join('');
-            // scroll current line into view
+            box.innerHTML = parsedLyrics.map((l, i) => {
+                const words = l.text.split(' ');
+                const mid = Math.ceil(words.length / 2);
+                const display = words.length > 6
+                    ? words.slice(0, mid).join(' ') + '<br>' + words.slice(mid).join(' ')
+                    : l.text;
+                return `<div style="transition:0.8s;opacity:${i === current ? 1 : 0.3};font-size:${i === current ? '14px' : '12px'};font-weight:${i === current ? 700 : 400};transform:${i === current ? 'scale(1.05)' : 'scale(1)'}">${display}</div>`;
+            }).join('');
             const lines = box.querySelectorAll('div');
             if (lines[current]) lines[current].scrollIntoView({ block: 'center', behavior: 'smooth' });
             requestAnimationFrame(highlightLyric);
@@ -468,7 +473,7 @@
                         const box = document.getElementById('lyrics-box');
                         if (lyrics) {
                             parsedLyrics = parseLRC(lyrics);
-                            box.style.display = 'block';
+                            box.style.display = 'flex';
                             highlightLyric();
                         } else {
                             parsedLyrics = [];
