@@ -336,16 +336,17 @@
                 if (parsedLyrics[i].time <= elapsed) current = i;
             }
             const box = document.getElementById('lyrics-box');
-            box.innerHTML = parsedLyrics.map((l, i) => {
+            const visible = [current - 1, current, current + 1].filter(i => i >= 0 && i < parsedLyrics.length);
+            box.innerHTML = visible.map(i => {
+                const l = parsedLyrics[i];
                 const words = l.text.split(' ');
                 const mid = Math.ceil(words.length / 2);
                 const display = words.length > 6
                     ? words.slice(0, mid).join(' ') + '<br>' + words.slice(mid).join(' ')
                     : l.text;
-                return `<div style="transition:0.8s;opacity:${i === current ? 1 : 0.3};font-size:${i === current ? '14px' : '12px'};font-weight:${i === current ? 700 : 400};transform:${i === current ? 'scale(1.05)' : 'scale(1)'}">${display}</div>`;
+                const isCurrent = i === current;
+                return `<div style="transition:0.8s;opacity:${isCurrent ? 1 : 0.3};font-size:${isCurrent ? '14px' : '12px'};font-weight:${isCurrent ? 700 : 400}">${display}</div>`;
             }).join('');
-            const lines = box.querySelectorAll('div');
-            if (lines[current]) lines[current].scrollIntoView({ block: 'center', behavior: 'smooth' });
             requestAnimationFrame(highlightLyric);
         }
         function toggleVideo() {
