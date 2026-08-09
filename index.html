@@ -14,12 +14,47 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/color-thief/2.3.0/color-thief.umd.js"></script>
     <style>
-        #lyrics-box::-webkit-scrollbar { display: none; }
         * { 
             box-sizing: border-box; 
             user-select: none; 
             -webkit-user-drag: none; 
             outline: none;
+        }
+        #lyrics-box {
+            width: 380px; 
+            height: 90px; 
+            overflow: hidden; 
+            margin-bottom: 15px; 
+            position: relative;
+            display: none;
+        }
+
+        .lyrics-container {
+            position: absolute;
+            width: 100%;
+            top: 0;
+            transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+
+        .lyric-line {
+            min-height: 30px;
+            padding: 2px 0;
+            text-align: center;
+            font-size: 13px;
+            color: #888;
+            line-height: 1.3;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: color 0.3s ease, opacity 0.3s ease, font-size 0.3s ease;
+            opacity: 0.3;
+        }
+
+        .lyric-line.active {
+            color: #fff;
+            opacity: 1;
+            font-size: 15px;
+            font-weight: 700;
         }
         
         body, html {
@@ -213,6 +248,7 @@
         #custom-tooltip.show { opacity: 1; transform: scale(1); }
 
         @keyframes breathe { 0%, 100% { opacity: 0.3; } 50% { opacity: 0.7; } }
+    
     </style>
 </head>
 <body>
@@ -249,10 +285,11 @@
             </div>
         </div>
         
-<div id="lyrics-box" style="width:380px; height:80px; overflow:hidden; color:#aaa; font-size:12px; margin-top:10px; line-height:1.8; text-align:center; display:none; display:flex; flex-direction:column; justify-content:center; align-items:center;"></div>
-        
+<div id="lyrics-box">
+    <div id="lyrics-container" class="lyrics-container"></div>
+</div>      
         <div class="social-row">
-            <a href="https://open.spotify.com/user/31k2pmaui63mayzriumadb6ranme" target="_blank" class="icon-link" data-tip="Spotify Profile">
+            <a href="https://open.spotify.com/user/31k2pmaui63mayzriumadb6ranme" target="_blank" class="icon-link" data-tip="Spotify">
                 <svg viewBox="0 0 496 512"><path d="M248 8C111.1 8 0 119.1 0 256s111.1 248 248 248 248-111.1 248-248S384.9 8 248 8zm100.7 364.7c-4.3 7.1-13.6 9.2-20.7 4.9-51.4-31.5-116.1-38.6-192.3-21.2-8.1 1.9-16.2-3.1-18.1-11.3-1.9-8.1 3.1-16.2 11.3-18.1 84.5-19.3 156.6-11 214.4 24.4 7.2 4.4 9.3 13.6 5.4 21.2zm26.3-68.8c-5.4 8.8-17.1 11.7-25.9 6.2-58.8-36.1-148.4-46.6-217.9-25.5-10 3.1-20.5-2.6-23.6-12.6-3.1-10 2.6-20.5 12.6-23.6 79.5-24.1 178.2-12.2 245.5 29.1 8.9 5.5 11.8 17.1 6.3 26.2zm2.3-71c-70.5-41.9-187-45.8-254.3-25.4-10.8 3.3-22.3-2.7-25.6-13.5-3.3-10.8 2.7-22.3 13.5-25.6 77.5-23.5 206.5-18.9 288 29.5 9.7 5.8 12.9 18.3 7.2 28-5.8 9.7-18.3 12.9-28.8 7z"/></svg>
             </a><a href="https://discord.com/users/741303253324791858" target="_blank" class="icon-link" data-tip="Discord">
                 <svg viewBox="0 0 640 512"><path d="M524.5 69.8a503.3 503.3 0 0 0 -124.2-38.5 2.5 2.5 0 0 0 -2.6 1.2 346.5 346.5 0 0 0 -15.3 31.4 464.5 464.5 0 0 0 -139.1 0 338.8 338.8 0 0 0 -15.4-31.4 2.5 2.5 0 0 0 -2.6-1.2 502.8 502.8 0 0 0 -124.2 38.5 2.5 2.5 0 0 0 -1 1c-80.1 119.8-102.1 236.7-91.1 352a2.6 2.6 0 0 0 1 1.8 507.7 507.7 0 0 0 152.8 77.2 2.5 2.5 0 0 0 2.7-1 353.7 353.7 0 0 0 31.5-51.2 2.5 2.5 0 0 0 -1.4-3.5 330.3 330.3 0 0 1 -48.5-23.1 2.5 2.5 0 0 1 -.2-4.1c3.2-2.4 6.4-4.9 9.5-7.5a2.5 2.5 0 0 1 2.6-.3c101.4 46.4 211 46.4 311.3 0a2.5 2.5 0 0 1 2.6 .3c3.1 2.6 6.3 5 9.5 7.5a2.5 2.5 0 0 1 -.2 4.1 323.7 323.7 0 0 1 -48.5 23.1 2.5 2.5 0 0 0 -1.4 3.5 362.1 362.1 0 0 0 31.5 51.2 2.5 2.5 0 0 0 2.7 1 506.7 506.7 0 0 0 152.8-77.2 2.5 2.5 0 0 0 1-1.8c12.5-131 8.8-246.9-91.1-352a2.5 2.5 0 0 0 -1-1zM215.8 358.7c-30.2 0-55.1-27.7-55.1-61.7s24.4-61.7 55.1-61.7 55.6 28.2 55.1 61.7c0 34-24.4 61.7-55.1 61.7zm210.4 0c-30.2 0-55.1-27.7-55.1-61.7s24.4-61.7 55.1-61.7 55.6 28.2 55.1 61.7c0 34-24.4 61.7-55.1 61.7z"/></svg>
@@ -328,25 +365,42 @@
         
         let parsedLyrics = [];
         
+        let lastCurrent = -1;
+
         function highlightLyric() {
             if (!parsedLyrics.length || !spotifyData?.timestamps) return;
             const elapsed = (Date.now() - spotifyData.timestamps.start) / 1000;
+
             let current = 0;
             for (let i = 0; i < parsedLyrics.length; i++) {
                 if (parsedLyrics[i].time <= elapsed) current = i;
             }
-            const box = document.getElementById('lyrics-box');
-            const visible = [current - 1, current, current + 1].filter(i => i >= 0 && i < parsedLyrics.length);
-            box.innerHTML = visible.map(i => {
-                const l = parsedLyrics[i];
-                const words = l.text.split(' ');
-                const mid = Math.ceil(words.length / 2);
-                const display = words.length > 6
-                    ? words.slice(0, mid).join(' ') + '<br>' + words.slice(mid).join(' ')
-                    : l.text;
-                const isCurrent = i === current;
-                return `<div style="transition:0.8s;opacity:${isCurrent ? 1 : 0.3};font-size:${isCurrent ? '14px' : '12px'};font-weight:${isCurrent ? 700 : 400}">${display}</div>`;
-            }).join('');
+
+            if (current !== lastCurrent) {
+                lastCurrent = current;
+                const box = document.getElementById('lyrics-box');
+                const container = document.getElementById('lyrics-container');
+                const lines = container.querySelectorAll('.lyric-line');
+
+                if (lines[current]) {
+                    const boxHeight = box.clientHeight;
+                    const lineTop = lines[current].offsetTop;
+                    const lineHeight = lines[current].offsetHeight;
+
+                    // Centers the active line perfectly in the middle of the box
+                    const offset = lineTop - (boxHeight / 2) + (lineHeight / 2);
+                    container.style.transform = `translateY(-${offset}px)`;
+                }
+
+                lines.forEach((line, idx) => {
+                    if (idx === current) {
+                        line.classList.add('active');
+                    } else {
+                        line.classList.remove('active');
+                    }
+                });
+            }
+
             requestAnimationFrame(highlightLyric);
         }
         function toggleVideo() {
@@ -472,12 +526,24 @@
                     lastTrackId = s.track_id;
                     fetchLyrics(s.song, s.artist).then(lyrics => {
                         const box = document.getElementById('lyrics-box');
+                        const container = document.getElementById('lyrics-container');
                         if (lyrics) {
                             parsedLyrics = parseLRC(lyrics);
-                            box.style.display = 'flex';
+                            container.innerHTML = parsedLyrics.map(l => {
+                                let txt = l.text.trim() || '♫♪♫♪♫';
+                                const words = txt.split(' ');
+                                if (words.length > 6 && txt !== '♫♪♫♪♫') {
+                                    const mid = Math.ceil(words.length / 2);
+                                    txt = words.slice(0, mid).join(' ') + '<br>' + words.slice(mid).join(' ');
+                                }
+                                return `<div class="lyric-line">${txt}</div>`;
+                            }).join('');
+                            box.style.display = 'block';
+                            lastCurrent = -1;
                             highlightLyric();
                         } else {
                             parsedLyrics = [];
+                            container.innerHTML = '';
                             box.style.display = 'none';
                         }
                     });
