@@ -59,7 +59,12 @@
         
         body, html {
             margin: 0; padding: 0; height: 100%;
-            background-color: #030303; color: #ffffff;
+            background-color: #030303; 
+            background-image: url('bg.png'); /* Swap with your image filename */
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            color: #ffffff;
             font-family: 'Segoe UI', Roboto, sans-serif;
             display: flex; justify-content: center; 
             align-items: center; 
@@ -67,21 +72,24 @@
         }
 
         /* --- AMBILIGHT --- */
+       /* --- AMBILIGHT --- */
+        /* --- AMBILIGHT --- */
         #ambilight-canvas {
             position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-            z-index: 1; filter: blur(200px) brightness(0.7) saturate(1.4);
+            z-index: 1; 
+            filter: blur(40px) brightness(1.2); /* Crisp, sharp glow */
             opacity: 0; transition: opacity 2s ease; pointer-events: none;
         }
         .ambilight-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: radial-gradient(circle, transparent 20%, rgba(3, 3, 3, 0.8) 80%);
+            background: rgba(0, 0, 0, 0.5); /* Darker 75% black tint */
             z-index: 2; pointer-events: none;
         }
 
         /* --- LOGIN SCREEN --- */
         #enter-screen {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: #000; display: flex; justify-content: center;
+            background: rgba(0, 0, 0, 0.5); display: flex; justify-content: center;
             align-items: center; z-index: 999; cursor: pointer;
             transition: opacity 0.8s ease;
         }
@@ -464,6 +472,7 @@
  
                 if (res.status === 204 || res.status !== 200) {
                     spotifyData = null;
+                    document.getElementById('lyrics-box').style.display = 'none';
                     if (spotifyWrapper.classList.contains('active')) {
                         spotifyWrapper.classList.remove('active');
                         content.classList.remove('spotify-active');
@@ -476,6 +485,7 @@
                 const d = await res.json();
                 if (!d.item || !d.is_playing) {
                     spotifyData = null;
+                    document.getElementById('lyrics-box').style.display = 'none';
                     spotifyWrapper.classList.remove('active');
                     content.classList.remove('spotify-active');
                     dynamicFavicon.href = 'icon.jpg';
@@ -532,11 +542,13 @@
                                 return `<div class="lyric-line">${txt}</div>`;
                             }).join('');
                             box.style.display = 'block';
+                            container.style.transform = 'translateY(0px)';
                             lastCurrent = -1;
                             highlightLyric();
                         } else {
                             parsedLyrics = [];
                             container.innerHTML = '';
+                            container.style.transform = 'translateY(0px)';
                             box.style.display = 'none';
                         }
                     });
@@ -580,7 +592,7 @@
                 enterScreen.style.display = 'none';
                 content.classList.add('visible-content');
                 ambCanvas.width = 64; ambCanvas.height = 36; 
-                video.muted = false; video.volume = 0.5;
+                video.muted = true;
                 video.play().then(() => { ambCanvas.style.opacity = "1"; drawAmbilight(); });
             }, 800);
         }
