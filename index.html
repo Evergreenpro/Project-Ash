@@ -450,115 +450,93 @@
             }, frameDelay);
         }
 
-        async function getAccessToken() {
-            if (accessToken && Date.now() < tokenExpiry) return accessToken;
-            
-            // Fetch token securely from Netlify function
-            const res = await fetch("/.netlify/functions/spotify");
-            const data = await res.json();
-            
-            accessToken = data.access_token;
-            tokenExpiry = Date.now() + 3600 * 1000 - 10000;
-            return accessToken;
-        }
+
 
         async function updateSpotify() {
-            if (document.hidden) return;
-            try {
-                const token = await getAccessToken();
-                const res = await fetch("https://api.spotify.com/v1/me/player/currently-playing", {
-                    headers: { "Authorization": "Bearer " + token }
-                });
- 
-                if (res.status === 204 || res.status !== 200) {
-                    spotifyData = null;
-                    document.getElementById('lyrics-box').style.display = 'none';
-                    if (spotifyWrapper.classList.contains('active')) {
-                        spotifyWrapper.classList.remove('active');
-                        content.classList.remove('spotify-active');
-                        dynamicFavicon.href = 'icon.jpg';
-                        lastTrackId = '';
-                    }
-                    return;
-                }
- 
-                const d = await res.json();
-                if (!d.item || !d.is_playing) {
-                    spotifyData = null;
-                    document.getElementById('lyrics-box').style.display = 'none';
-                    spotifyWrapper.classList.remove('active');
-                    content.classList.remove('spotify-active');
-                    dynamicFavicon.href = 'icon.jpg';
-                    lastTrackId = '';
-                    return;
-                }
- 
-                spotifyData = {
-                    track_id:      d.item.id,
-                    song:          d.item.name,
-                    artist:        d.item.artists.map(a => a.name).join(', '),
-                    album_art_url: d.item.album.images[0]?.url,
-                    url:           d.item.external_urls.spotify,
-                    timestamps: {
-                        start: Date.now() - d.progress_ms,
-                        end:   Date.now() - d.progress_ms + d.item.duration_ms,
-                    },
-                };
- 
-                const s = spotifyData;
-                if (s.track_id !== lastTrackId) {
-                    spotifyArt.style.opacity = 0;
-                    setTimeout(() => {
-                        spotifyArt.src = s.album_art_url || '';
-                        dynamicFavicon.href = s.album_art_url || 'icon.jpg';
-                        spotifyArt.onload = () => {
-                            spotifyArt.style.opacity = 1;
-                            try {
-                                const color = colorThief.getColor(spotifyArt);
-                                const rgb = `rgb(${color[0]}, ${color[1]}, ${color[2]})`;
-                                spotifyArtist.style.color = rgb;
-                                spotifyProgressBar.style.background = rgb;
-                            } catch (e) {
-                                spotifyArtist.style.color = '#1DB954';
-                                spotifyProgressBar.style.background = '#1DB954';
+                    if (document.hidden) return;
+                    try {
+                        // Call your secure Netlify function directly
+                        const res = await fetch("/.netlify/functions/spotify");
+                        const d = await res.json();
+        
+                        if (!d.is_playing) {
+                            spotifyData = null;
+                            document.getElementById('lyrics-box').style.display = 'none';
+                            if (spotifyWrapper.classList.contains('active')) {
+                                spotifyWrapper.classList.remove('active');
+                                content.classList.remove('spotify-active');
+                                dynamicFavicon.href = 'icon.jpg';
+                                lastTrackId = '';
                             }
-                        };
-                    }, 500);
-                    scrambleText(spotifyName, s.song || '...');
-                    scrambleText(spotifyArtist, s.artist || '...');
-                    lastTrackId = s.track_id;
-                    fetchLyrics(s.song, s.artist).then(lyrics => {
-                        const box = document.getElementById('lyrics-box');
-                        const container = document.getElementById('lyrics-container');
-                        if (lyrics) {
-                            parsedLyrics = parseLRC(lyrics);
-                            container.innerHTML = parsedLyrics.map(l => {
-                                let txt = l.text.trim() || '♫♪♫♪♫';
-                                const words = txt.split(' ');
-                                if (words.length > 6 && txt !== '♫♪♫♪♫') {
-                                    const mid = Math.ceil(words.length / 2);
-                                    txt = words.slice(0, mid).join(' ') + '<br>' + words.slice(mid).join(' ');
-                                }
-                                return `<div class="lyric-line">${txt}</div>`;
-                            }).join('');
-                            box.style.display = 'block';
-                            container.style.transform = 'translateY(0px)';
-                            lastCurrent = -1;
-                            highlightLyric();
-                        } else {
-                            parsedLyrics = [];
-                            container.innerHTML = '';
-                            container.style.transform = 'translateY(0px)';
-                            box.style.display = 'none';
+                            return;
                         }
-                    });
+        
+                        spotifyData = {
+                            track_id:      d.track_id,
+                            song:          d.song,
+                            artist:        d.artist,
+                            album_art_url: d.album_art_url,
+                            url:           d.url,
+                            timestamps: {
+                                start: Date.now() - d.progress_ms,
+                                end:   Date.now() - d.progress_ms + d.duration_ms,
+                            },
+                        };
+        
+                        const s = spotifyData;
+                        if (s.track_id !== lastTrackId) {
+                            spotifyArt.style.opacity = 0;
+                            setTimeout(() => {
+                                spotifyArt.src = s.album_art_url || '';
+                                dynamicFavicon.href = s.album_art_url || 'icon.jpg';
+                                spotifyArt.onload = () => {
+                                    spotifyArt.style.opacity = 1;
+                                    try {
+                                        const color = colorThief.getColor(spotifyArt);
+                                        const rgb = `rgb(${color[0]}, ${color[1]}, ${color[2]})`;
+                                        spotifyArtist.style.color = rgb;
+                                        spotifyProgressBar.style.background = rgb;
+                                    } catch (e) {
+                                        spotifyArtist.style.color = '#1DB954';
+                                        spotifyProgressBar.style.background = '#1DB954';
+                                    }
+                                };
+                            }, 500);
+                            scrambleText(spotifyName, s.song || '...');
+                            scrambleText(spotifyArtist, s.artist || '...');
+                            lastTrackId = s.track_id;
+                            fetchLyrics(s.song, s.artist).then(lyrics => {
+                                const box = document.getElementById('lyrics-box');
+                                const container = document.getElementById('lyrics-container');
+                                if (lyrics) {
+                                    parsedLyrics = parseLRC(lyrics);
+                                    container.innerHTML = parsedLyrics.map(l => {
+                                        let txt = l.text.trim() || '♫♪♫♪♫';
+                                        const words = txt.split(' ');
+                                        if (words.length > 6 && txt !== '♫♪♫♪♫') {
+                                            const mid = Math.ceil(words.length / 2);
+                                            txt = words.slice(0, mid).join(' ') + '<br>' + words.slice(mid).join(' ');
+                                        }
+                                        return `<div class="lyric-line">${txt}</div>`;
+                                    }).join('');
+                                    box.style.display = 'block';
+                                    container.style.transform = 'translateY(0px)';
+                                    lastCurrent = -1;
+                                    highlightLyric();
+                                } else {
+                                    parsedLyrics = [];
+                                    container.innerHTML = '';
+                                    container.style.transform = 'translateY(0px)';
+                                    box.style.display = 'none';
+                                }
+                            });
+                        }
+                        if (!spotifyWrapper.classList.contains('active')) {
+                            spotifyWrapper.classList.add('active');
+                            content.classList.add('spotify-active');
+                        }
+                    } catch (e) {}
                 }
-                if (!spotifyWrapper.classList.contains('active')) {
-                    spotifyWrapper.classList.add('active');
-                    content.classList.add('spotify-active');
-                }
-            } catch (e) {}
-        }
         
         setInterval(updateSpotify, 2000);
 
