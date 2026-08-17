@@ -202,7 +202,11 @@
             overflow: hidden;
         }
         .video-wrapper { width: 100%; position: relative; }
-        video { width: 100%; display: block; }
+        video {
+            width: 100%;
+            display: block;
+            max-width: 600px;
+            height: auto; }
 
         .video-controls-overlay {
             position: absolute; bottom: 0; left: 0; width: 100%; height: 60px;
@@ -326,8 +330,7 @@
 
         const SPOTIFY = {
             clientId:     "0000d236c74e452281d05a086eef7e4d",
-            clientSecret: "6d53c88455a244da92ac0794a002d471",
-            refreshToken: "AQC1bHtBoNU3HPUPn_Z6bv7riU6-sihilbEVVhEcfC96I3uDi6kyxogZzVaTiJ2QgjEfbZX1dYhf9luRfAe9Rq7Pz7O9kqz6Z98IzGfXU-vexhNudbcs0Bz-xd2OPONfDuw",
+
         };
         let accessToken = null;
         let tokenExpiry = 0;
@@ -442,20 +445,13 @@
 
         async function getAccessToken() {
             if (accessToken && Date.now() < tokenExpiry) return accessToken;
-            const res = await fetch("https://accounts.spotify.com/api/token", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/x-www-form-urlencoded",
-                    "Authorization": "Basic " + btoa(SPOTIFY.clientId + ":" + SPOTIFY.clientSecret),
-                },
-                body: new URLSearchParams({
-                    grant_type: "refresh_token",
-                    refresh_token: SPOTIFY.refreshToken,
-                }),
-            });
+            
+            // Fetch token securely from Netlify function
+            const res = await fetch("/.netlify/functions/spotify");
             const data = await res.json();
+            
             accessToken = data.access_token;
-            tokenExpiry = Date.now() + data.expires_in * 1000 - 10000;
+            tokenExpiry = Date.now() + 3600 * 1000 - 10000;
             return accessToken;
         }
 
@@ -574,6 +570,10 @@
         }
 
         function startBio() {
+            if (!/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+                content.style.zoom = "1.4";
+            }
+            
             enterScreen.style.opacity = '0';
             updateSpotify();
             notifyVisitor();
@@ -595,69 +595,24 @@
             link.addEventListener('mouseleave', () => { tooltip.classList.remove('show'); });
         });
         
-        const DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1538048516285407262/dXUHIs1zoucv7A5v9Y70lxEvqn7LtYKxgFsEeHSApKdsFz_5kxzB8Vif0V5cS2H8WS0M";
-
         async function notifyVisitor() {
             if (sessionStorage.getItem("visited_recently")) return;
 
             try {
-                const res = await fetch("https://ipapi.co/json/");
-                const data = await res.json();
-
-                if (!data.latitude || !data.longitude) return;
-
-                const lat = data.latitude;
-                const lon = data.longitude;
-                let neighborhood = "";
-
-                try {
-                    const geoRes = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`);
-                    const geoData = await geoRes.json();
-                    const addr = geoData.address;
-                    neighborhood = addr.suburb || addr.neighbourhood || addr.residential || addr.subdistrict || "";
-                } catch (e) {}
-
-                const locationText = neighborhood ? `${neighborhood}, ${data.city}` : `${data.city}, ${data.region}`;
-                const mapsUrl = `https://www.google.com/maps?q=${lat},${lon}`;
-                const mapImageUrl = `https://static-maps.yandex.ru/1.x/?l=map&pt=${lon},${lat},pm2rdm&z=11&size=450,250&lang=en_US`;
-
-                const screenRes = `${window.screen.width}x${window.screen.height}`;
-                const refUrl = window.location.search || "Direct / None";
-                
-                const ua = navigator.userAgent;
-                let deviceType = "Desktop / PC";
-                if (/iPhone/i.test(ua)) deviceType = "📱 iPhone";
-                else if (/iPad/i.test(ua)) deviceType = "📱 iPad";
-                else if (/Android/i.test(ua)) deviceType = "📱 Android Mobile";
-
-            
-                const payload = {
-                    embeds: [{
-                        title: "New Visitor!",
-                        color: 0x1DB954,
-                        description: `[Open Coordinates in Maps](${mapsUrl})`,
-                        fields: [
-                            { name: "IP Address", value: data.ip || "Unknown", inline: true },
-                            { name: "Area / City", value: locationText, inline: true },
-                            { name: "ISP/Network", value: data.org || "Unknown", inline: false },
-                            { name: "Device Type", value: deviceType, inline: true },
-                            { name: "Screen Size", value: screenRes, inline: true },
-                            { name: "Ref / Tracker Tag", value: refUrl, inline: true },
-                            { name: "User Agent Details", value: `\`\`\`${ua.slice(0, 250)}\`\`\``, inline: false }
-                        ],
-                        image: { url: mapImageUrl },
-                        timestamp: new Date().toISOString()
-                    }]
-                };
-
-                await fetch(DISCORD_WEBHOOK_URL, {
+                await fetch("/.netlify/functions/visitor", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(payload)
+                    body: JSON.stringify({
+                        screenRes: `${window.screen.width}x${window.screen.height}`,
+                        refUrl: window.location.search || "Direct / None",
+                        userAgent: navigator.userAgent
+                    })
                 });
 
                 sessionStorage.setItem("visited_recently", "true");
-            } catch (e) {}
+            } catch (e) {
+                console.error("Tracking error:", e);
+            }
         }
 
         
