@@ -27,6 +27,8 @@
             margin-bottom: 1.5vh; 
             position: relative;
             display: none;
+            mask-image: linear-gradient(to bottom, transparent 0%, black 20%, black 80%, transparent 100%);
+            -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 20%, black 80%, transparent 100%);
         }
 
         .lyrics-container {
@@ -44,17 +46,45 @@
             color: #888;
             line-height: 1.3;
             display: flex;
+            flex-wrap: wrap;
             align-items: center;
             justify-content: center;
+            row-gap: 0.2vh;
             transition: color 0.3s ease, opacity 0.3s ease, font-size 0.3s ease;
             opacity: 0.3;
         }
 
         .lyric-line.active {
-            color: #fff;
+            color: #888;
             opacity: 1;
             font-size: 1.5vh;
             font-weight: 700;
+        }
+
+        /* Word-by-word karaoke highlighting, spring/spline-driven (see the
+           Spring/Spline classes and updateWordVisual() in the script below —
+           ported from SpotifyPlus's beautifullyrics animation engine).
+           --s = scale, --y = vertical lift, --glow-blur = shadow blur,
+           --fill = % of the word "filled" with the bright color.
+           Glow is plain white on purpose — not tied to album art colors. */
+        .lyric-word {
+            display: inline-block;
+            min-width: 0;
+            max-width: 100%;
+            overflow-wrap: break-word;
+            transform: scale(var(--s, 1)) translateY(var(--y, 0em));
+            text-shadow: 0 0 var(--glow-blur, 0px) rgba(255, 255, 255, 0.85);
+            background-image: linear-gradient(
+                90deg,
+                #fff calc(var(--fill, 0%) - 12%),
+                #fff var(--fill, 0%),
+                #888 calc(var(--fill, 0%) + 12%),
+                #888 100%
+            );
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            will-change: transform;
         }
         
         body, html {
@@ -359,39 +389,301 @@
         let lastTrackId = '';
         let spotifyData = null;
         const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ!<>-_\\/[]{}—=+*^?#'; 
-        async function fetchLyrics(title, artist) {
-            const res = await fetch(`https://lrclib.net/api/get?track_name=${encodeURIComponent(title)}&artist_name=${encodeURIComponent(artist)}`);
-            const data = await res.json();
-            return data.syncedLyrics || null;
+
+        // --- Lyrics animation engine, ported from SpotifyPlus's beautifullyrics ---
+        // Natural cubic spline (port of morganherlocker/cubic-spline via Spline.java).
+        // Used to turn a small set of (progress -> value) control points into a
+        // smooth curve, e.g. "scale peaks at 1.03 when 70% through the word".
+        class Spline {
+            constructor(xs, ys) {
+                this.xs = xs;
+                this.ys = ys;
+                this.ks = this._naturalKs(new Array(xs.length).fill(0));
+            }
+            _naturalKs(ks) {
+                const xs = this.xs, ys = this.ys, n = xs.length - 1;
+                const a = Array.from({ length: n + 1 }, () => new Array(n + 2).fill(0));
+                for (let i = 1; i < n; i++) {
+                    a[i][i - 1] = 1 / (xs[i] - xs[i - 1]);
+                    a[i][i] = 2 * (1 / (xs[i] - xs[i - 1]) + 1 / (xs[i + 1] - xs[i]));
+                    a[i][i + 1] = 1 / (xs[i + 1] - xs[i]);
+                    a[i][n + 1] = 3 * ((ys[i] - ys[i - 1]) / (xs[i] - xs[i - 1]) ** 2 + (ys[i + 1] - ys[i]) / (xs[i + 1] - xs[i]) ** 2);
+                }
+                a[0][0] = 2 / (xs[1] - xs[0]);
+                a[0][1] = 1 / (xs[1] - xs[0]);
+                a[0][n + 1] = 3 * (ys[1] - ys[0]) / (xs[1] - xs[0]) ** 2;
+                a[n][n - 1] = 1 / (xs[n] - xs[n - 1]);
+                a[n][n] = 2 / (xs[n] - xs[n - 1]);
+                a[n][n + 1] = 3 * (ys[n] - ys[n - 1]) / (xs[n] - xs[n - 1]) ** 2;
+                return this._solve(a, ks);
+            }
+            _indexBefore(target) {
+                const xs = this.xs;
+                let low = 0, high = xs.length, mid = 0;
+                while (low < high) {
+                    mid = Math.floor((low + high) / 2);
+                    if (xs[mid] < target && mid !== low) low = mid;
+                    else if (xs[mid] >= target && mid !== high) high = mid;
+                    else high = low;
+                }
+                return low === xs.length - 1 ? xs.length - 1 : low + 1;
+            }
+            at(x) {
+                const xs = this.xs, ys = this.ys, ks = this.ks;
+                const i = this._indexBefore(x);
+                const t = (x - xs[i - 1]) / (xs[i] - xs[i - 1]);
+                const a = ks[i - 1] * (xs[i] - xs[i - 1]) - (ys[i] - ys[i - 1]);
+                const b = -ks[i] * (xs[i] - xs[i - 1]) + (ys[i] - ys[i - 1]);
+                return (1 - t) * ys[i - 1] + t * ys[i] + t * (1 - t) * (a * (1 - t) + b * t);
+            }
+            _solve(a, ks) {
+                const m = a.length;
+                let h = 0, k = 0;
+                while (h < m && k <= m) {
+                    let iMax = h, max = -Infinity;
+                    for (let i = h; i < m; i++) {
+                        const v = Math.abs(a[i][k]);
+                        if (v > max) { iMax = i; max = v; }
+                    }
+                    if (a[iMax][k] === 0) {
+                        k++;
+                    } else {
+                        [a[h], a[iMax]] = [a[iMax], a[h]];
+                        for (let i = h + 1; i < m; i++) {
+                            const f = a[i][k] / a[h][k];
+                            a[i][k] = 0;
+                            for (let j = k + 1; j <= m; j++) a[i][j] -= a[h][j] * f;
+                        }
+                        h++; k++;
+                    }
+                }
+                for (let i = m - 1; i >= 0; i--) {
+                    let v = a[i][i] !== 0 ? a[i][m] / a[i][i] : 0;
+                    ks[i] = v;
+                    for (let j = i - 1; j >= 0; j--) {
+                        a[j][m] -= a[j][i] * v;
+                        a[j][i] = 0;
+                    }
+                }
+                return ks;
+            }
         }
 
-        function parseLRC(lrc) {
-            return lrc.split('\n').map(line => {
-                const match = line.match(/\[(\d+):(\d+\.\d+)\](.*)/);
-                if (!match) return null;
-                const time = parseInt(match[1]) * 60 + parseFloat(match[2]);
-                return { time, text: match[3].trim() };
-            }).filter(Boolean);
+        // Damped harmonic oscillator (port of Spring.java). Each word's scale,
+        // lift and glow "chase" a target value through this instead of snapping
+        // to it, which is what gives the animation its organic bounce.
+        class Spring {
+            constructor(initial, dampingRatio, frequency) {
+                this.dampingRatio = dampingRatio;
+                this.frequency = frequency;
+                this.velocity = 0;
+                this.position = initial;
+                this.finalPosition = initial;
+            }
+            update(deltaTime) {
+                const w = this.frequency * (Math.PI * 2);
+                const finalPosition = this.finalPosition;
+                const velocity = this.velocity;
+                const offset = this.position - finalPosition;
+                const d = this.dampingRatio;
+                const decay = Math.exp(-d * w * deltaTime);
+                let newPosition, newVelocity;
+
+                if (d === 1) {
+                    newPosition = ((offset * (1 + w * deltaTime) + velocity * deltaTime) * decay) + finalPosition;
+                    newVelocity = (velocity * (1 - w * deltaTime) - offset * (w * w * deltaTime)) * decay;
+                } else if (d < 1) {
+                    const c = Math.sqrt(1 - d * d);
+                    const i = Math.cos(w * c * deltaTime);
+                    const j = Math.sin(w * c * deltaTime);
+                    const z = c > 1e-4 ? j / c : (deltaTime * w);
+                    const y = (w * c) > 1e-4 ? j / (w * c) : deltaTime;
+                    newPosition = ((offset * (i + d * z) + velocity * y) * decay) + finalPosition;
+                    newVelocity = (velocity * (i - z * d) - offset * (z * w)) * decay;
+                } else {
+                    const c = Math.sqrt(d * d - 1);
+                    const r1 = -w * (d - c);
+                    const r2 = -w * (d + c);
+                    const co2 = (velocity - offset * r1) / (2 * w * c);
+                    const co1 = offset - co2;
+                    const e1 = co1 * Math.exp(r1 * deltaTime);
+                    const e2 = co2 * Math.exp(r2 * deltaTime);
+                    newPosition = e1 + e2 + finalPosition;
+                    newVelocity = (e1 * r1) + (e2 * r2);
+                }
+
+                this.position = newPosition;
+                this.velocity = newVelocity;
+                return newPosition;
+            }
         }
-        
+
+        // Same control points/spring constants as the Android app's non-"Apple
+        // style" (Beautiful Lyrics) preset.
+        const scaleCurve = new Spline([0, 0.7, 1], [1, 1.03, 1]);
+        const scaleCurveEmphasized = new Spline([0, 0.3, 1], [1, 1.25, 1]);
+        const yOffsetCurve = new Spline([0, 0.9, 1], [1 / 100, -(1 / 60), 0]);
+        const glowCurve = new Spline([0, 0.15, 0.6, 1], [0, 1, 1, 0]);
+
+        function newWordSprings() {
+            return {
+                scale: new Spring(1, 0.6, 0.7),
+                yOffset: new Spring(0, 0.4, 1.25),
+                glow: new Spring(0, 0.5, 1)
+            };
+        }
+
+        function clamp01(x) { return Math.max(0, Math.min(1, x)); }
+
+        // Steps one word's springs toward its curve targets for this frame and
+        // writes the result onto the span as CSS custom properties.
+        function updateWordVisual(el, w, elapsed, dt) {
+            if (!el || !w || w.time === null || !w.springs) return;
+            const duration = Math.max(0.0001, w.endTime - w.time);
+            const timeScale = clamp01((elapsed - w.time) / duration);
+            const emphasized = duration >= 1;
+
+            const s = w.springs;
+            s.scale.finalPosition = (emphasized ? scaleCurveEmphasized : scaleCurve).at(timeScale);
+            s.yOffset.finalPosition = yOffsetCurve.at(timeScale) * (emphasized ? 2 : 1);
+            s.glow.finalPosition = glowCurve.at(timeScale) * (emphasized ? 3 : 1);
+
+            const scale = s.scale.update(dt);
+            const yOffset = s.yOffset.update(dt);
+            const glow = Math.max(0, s.glow.update(dt));
+            const fill = Math.max(0, Math.min(100, -20 + 120 * timeScale));
+
+            el.style.setProperty('--s', scale.toFixed(4));
+            el.style.setProperty('--y', yOffset.toFixed(4) + 'em');
+            el.style.setProperty('--glow-blur', (glow * 8).toFixed(2) + 'px');
+            el.style.setProperty('--fill', fill.toFixed(2) + '%');
+        }
+
+        // Freezes a line's words at rest — fully bright (already sung) or fully
+        // dim (not reached yet) — instead of running springs on lines the
+        // listener isn't currently looking at.
+        function freezeLineVisual(lineEl, alreadySung) {
+            lineEl.querySelectorAll('.lyric-word').forEach(el => {
+                el.style.setProperty('--s', '1');
+                el.style.setProperty('--y', '0em');
+                el.style.setProperty('--glow-blur', '0px');
+                el.style.setProperty('--fill', alreadySung ? '100%' : '0%');
+            });
+        }
+
+        let lastAnimTime = null;
+        // Fetches lyrics by Spotify track ID via our own Netlify function, which
+        // proxies spotifyplus-api (github.com/LeNerd46/spotifyplus-api). That API
+        // can return three shapes depending on what it found:
+        //   'Syllable' -> Apple Music word/syllable-synced ("beautiful lyrics") karaoke data
+        //   'Line'     -> line-synced only (e.g. LRCLIB fallback)
+        //   'Static'   -> plain text, no timing at all
+        async function fetchLyrics(trackId) {
+            try {
+                const res = await fetch(`/.netlify/functions/lyrics?id=${encodeURIComponent(trackId)}`);
+                if (!res.ok) return null;
+                const data = await res.json();
+                if (!data || data.error) return null;
+                return data;
+            } catch (e) {
+                return null;
+            }
+        }
+
+        // Normalizes any of the three lyric shapes into a flat array of lines,
+        // each holding its own array of timed "words" (syllable chunks for
+        // word-synced tracks, or one word == the whole line for line/static ones).
+        function parseLyrics(data) {
+            if (!data || !data.Type) return [];
+
+            if (data.Type === 'Syllable') {
+                return data.Content.map(item => {
+                    if (item.Type === 'Interlude') {
+                        return {
+                            time: item.StartTime,
+                            endTime: item.EndTime,
+                            words: [{ time: item.StartTime, endTime: item.EndTime, text: '♫', isPartOfWord: false }]
+                        };
+                    }
+                    const lead = item.Lead;
+                    return {
+                        time: lead.StartTime,
+                        endTime: lead.EndTime,
+                        words: lead.Syllables.map(s => ({
+                            time: s.StartTime,
+                            endTime: s.EndTime,
+                            text: s.Text,
+                            isPartOfWord: !!s.IsPartOfWord
+                        }))
+                    };
+                });
+            }
+
+            if (data.Type === 'Line') {
+                return data.Content.map(item => {
+                    if (item.Type === 'Interlude') {
+                        return {
+                            time: item.StartTime,
+                            endTime: item.EndTime,
+                            words: [{ time: item.StartTime, endTime: item.EndTime, text: '♫', isPartOfWord: false }]
+                        };
+                    }
+                    return {
+                        time: item.StartTime,
+                        endTime: item.EndTime,
+                        words: [{ time: item.StartTime, endTime: item.EndTime, text: item.Text, isPartOfWord: false }]
+                    };
+                });
+            }
+
+            if (data.Type === 'Static') {
+                return data.Lines.map(l => ({
+                    time: null,
+                    endTime: null,
+                    words: [{ time: null, endTime: null, text: l.Text, isPartOfWord: false }]
+                }));
+            }
+
+            return [];
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
+        // Renders a line's words as spans. Syllables flagged IsPartOfWord attach
+        // directly to the next one (no space) so multi-syllable words stay joined.
+        function renderLineHTML(line) {
+            return line.words.map((w, idx) => {
+                const needsSpaceAfter = !w.isPartOfWord && idx < line.words.length - 1;
+                const text = escapeHtml(w.text) + (needsSpaceAfter ? '&nbsp;' : '');
+                return `<span class="lyric-word">${text}</span>`;
+            }).join('');
+        }
+
         let parsedLyrics = [];
-        
+
         let lastCurrent = -1;
 
         function highlightLyric() {
             if (!parsedLyrics.length || !spotifyData?.timestamps) return;
+            const now = performance.now();
+            const dt = lastAnimTime === null ? 0 : Math.min(0.1, (now - lastAnimTime) / 1000);
+            lastAnimTime = now;
+
             const elapsed = (Date.now() - spotifyData.timestamps.start) / 1000;
 
             let current = 0;
             for (let i = 0; i < parsedLyrics.length; i++) {
-                if (parsedLyrics[i].time <= elapsed) current = i;
+                if (parsedLyrics[i].time !== null && parsedLyrics[i].time <= elapsed) current = i;
             }
+
+            const box = document.getElementById('lyrics-box');
+            const container = document.getElementById('lyrics-container');
+            const lines = container.querySelectorAll('.lyric-line');
 
             if (current !== lastCurrent) {
                 lastCurrent = current;
-                const box = document.getElementById('lyrics-box');
-                const container = document.getElementById('lyrics-container');
-                const lines = container.querySelectorAll('.lyric-line');
 
                 if (lines[current]) {
                     const boxHeight = box.clientHeight;
@@ -402,12 +694,19 @@
                 }
 
                 lines.forEach((line, idx) => {
-                    if (idx === current) {
-                        line.classList.add('active');
-                    } else {
-                        line.classList.remove('active');
+                    line.classList.toggle('active', idx === current);
+                    if (idx !== current) {
+                        freezeLineVisual(line, idx < current);
                     }
                 });
+            }
+
+            // Word-by-word progress within the active line, spring-animated.
+            const activeLineEl = lines[current];
+            const activeWords = parsedLyrics[current]?.words;
+            if (activeLineEl && activeWords) {
+                const wordEls = activeLineEl.querySelectorAll('.lyric-word');
+                wordEls.forEach((el, idx) => updateWordVisual(el, activeWords[idx], elapsed, dt));
             }
 
             requestAnimationFrame(highlightLyric);
@@ -497,35 +796,32 @@
                                         const rgb = `rgb(${color[0]}, ${color[1]}, ${color[2]})`;
                                         spotifyArtist.style.color = rgb;
                                         spotifyProgressBar.style.background = rgb;
+                                        document.documentElement.style.setProperty('--accent-color', rgb);
                                     } catch (e) {
                                         spotifyArtist.style.color = '#1DB954';
                                         spotifyProgressBar.style.background = '#1DB954';
+                                        document.documentElement.style.setProperty('--accent-color', '#1DB954');
                                     }
                                 };
                             }, 500);
                             scrambleText(spotifyName, s.song || '...');
                             scrambleText(spotifyArtist, s.artist || '...');
                             lastTrackId = s.track_id;
-                            fetchLyrics(s.song, s.artist).then(lyrics => {
+                            fetchLyrics(s.track_id).then(lyricsData => {
                                 const box = document.getElementById('lyrics-box');
                                 const container = document.getElementById('lyrics-container');
-                                if (lyrics) {
-                                    parsedLyrics = parseLRC(lyrics);
-                                    container.innerHTML = parsedLyrics.map(l => {
-                                        let txt = l.text.trim() || '♫♪♫♪♫';
-                                        const words = txt.split(' ');
-                                        if (words.length > 6 && txt !== '♫♪♫♪♫') {
-                                            const mid = Math.ceil(words.length / 2);
-                                            txt = words.slice(0, mid).join(' ') + '<br>' + words.slice(mid).join(' ');
-                                        }
-                                        return `<div class="lyric-line">${txt}</div>`;
-                                    }).join('');
+                                parsedLyrics = parseLyrics(lyricsData);
+                                parsedLyrics.forEach(line => line.words.forEach(w => { w.springs = newWordSprings(); }));
+                                if (parsedLyrics.length) {
+                                    container.innerHTML = parsedLyrics.map(line =>
+                                        `<div class="lyric-line">${renderLineHTML(line)}</div>`
+                                    ).join('');
                                     box.style.display = 'block';
                                     container.style.transform = 'translateY(0px)';
                                     lastCurrent = -1;
+                                    lastAnimTime = null;
                                     highlightLyric();
                                 } else {
-                                    parsedLyrics = [];
                                     container.innerHTML = '';
                                     container.style.transform = 'translateY(0px)';
                                     box.style.display = 'none';
