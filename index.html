@@ -35,7 +35,6 @@
             position: absolute;
             width: 100%;
             top: 0;
-            transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1);
         }
 
         .lyric-line {
@@ -76,10 +75,10 @@
             text-shadow: 0 0 var(--glow-blur, 0px) rgba(255, 255, 255, 0.85);
             background-image: linear-gradient(
                 90deg,
-                #fff calc(var(--fill, 0%) - 12%),
+                #fff calc(var(--fill, 0%) - 20%),
                 #fff var(--fill, 0%),
-                #888 calc(var(--fill, 0%) + 12%),
-                #888 100%
+                #555 calc(var(--fill, 0%) + 20%),
+                #555 100%
             );
             -webkit-background-clip: text;
             background-clip: text;
@@ -270,11 +269,11 @@
         .volume-icon { width: 18px; height: 18px; fill: #fff; opacity: 0.8; }
 
         input[type=range] { 
-            -webkit-appearance: none; width: 80px; height: 3px; 
+            -webkit-appearance: none; appearance: none; width: 80px; height: 3px; 
             background: rgba(255, 255, 255, 0.2); outline: none; border-radius: 2px;
         }
         input[type=range]::-webkit-slider-thumb { 
-            -webkit-appearance: none; width: 12px; height: 12px; 
+            -webkit-appearance: none; appearance: none; width: 12px; height: 12px; 
             border-radius: 50%; background: #fff; cursor: pointer; 
             box-shadow: 0 0 5px rgba(0,0,0,0.5);
         }
@@ -535,23 +534,21 @@
 
         function clamp01(x) { return Math.max(0, Math.min(1, x)); }
 
-        // Steps one word's springs toward its curve targets for this frame and
-        // writes the result onto the span as CSS custom properties.
         function updateWordVisual(el, w, elapsed, dt) {
             if (!el || !w || w.time === null || !w.springs) return;
             const duration = Math.max(0.0001, w.endTime - w.time);
             const timeScale = clamp01((elapsed - w.time) / duration);
-            const emphasized = duration >= 1;
+            const emphasized = duration >= 1 && !w.isLine;
 
             const s = w.springs;
             s.scale.finalPosition = (emphasized ? scaleCurveEmphasized : scaleCurve).at(timeScale);
-            s.yOffset.finalPosition = yOffsetCurve.at(timeScale) * (emphasized ? 2 : 1);
+            s.yOffset.finalPosition = w.isLine ? 0 : yOffsetCurve.at(timeScale) * (emphasized ? 2 : 1);
             s.glow.finalPosition = glowCurve.at(timeScale) * (emphasized ? 3 : 1);
 
             const scale = s.scale.update(dt);
             const yOffset = s.yOffset.update(dt);
             const glow = Math.max(0, s.glow.update(dt));
-            const fill = Math.max(0, Math.min(100, -20 + 120 * timeScale));
+            const fill = Math.max(0, Math.min(100, -10 + 110 * timeScale));
 
             el.style.setProperty('--s', scale.toFixed(4));
             el.style.setProperty('--y', yOffset.toFixed(4) + 'em');
@@ -625,13 +622,13 @@
                         return {
                             time: item.StartTime,
                             endTime: item.EndTime,
-                            words: [{ time: item.StartTime, endTime: item.EndTime, text: '♫', isPartOfWord: false }]
+                            words: [{ time: item.StartTime, endTime: item.EndTime, text: '♫', isPartOfWord: false, isLine: false }]
                         };
                     }
                     return {
                         time: item.StartTime,
                         endTime: item.EndTime,
-                        words: [{ time: item.StartTime, endTime: item.EndTime, text: item.Text, isPartOfWord: false }]
+                        words: [{ time: item.StartTime, endTime: item.EndTime, text: item.Text, isPartOfWord: false, isLine: true }]
                     };
                 });
             }
@@ -664,6 +661,7 @@
         let parsedLyrics = [];
 
         let lastCurrent = -1;
+        const scrollSpring = new Spring(0, 0.98, 1.8);
 
         function highlightLyric() {
             if (!parsedLyrics.length || !spotifyData?.timestamps) return;
@@ -689,17 +687,24 @@
                     const boxHeight = box.clientHeight;
                     const lineTop = lines[current].offsetTop;
                     const lineHeight = lines[current].offsetHeight;
-                    const offset = lineTop - (boxHeight / 2) + (lineHeight / 2);
-                    container.style.transform = `translateY(-${offset}px)`;
+                    const offset = lineTop - (boxHeight * 0.3) + (lineHeight / 2);
+                    scrollSpring.finalPosition = Math.max(0, offset);
                 }
 
                 lines.forEach((line, idx) => {
                     line.classList.toggle('active', idx === current);
-                    if (idx !== current) {
-                        freezeLineVisual(line, idx < current);
-                    }
+                    if (idx !== current) freezeLineVisual(line, idx < current);
                 });
             }
+
+            const scrollY = scrollSpring.update(dt);
+            container.style.transform = `translateY(-${scrollY.toFixed(2)}px)`;
+
+            lines.forEach((line, idx) => {
+                const dist = Math.abs(idx - current);
+                const blur = dist === 0 ? 0 : dist === 1 ? 0.6 : dist === 2 ? 1.8 : 3.5;
+                line.style.filter = `blur(${blur}px)`;
+            });
 
             // Word-by-word progress within the active line, spring-animated.
             const activeLineEl = lines[current];
@@ -818,6 +823,9 @@
                                     ).join('');
                                     box.style.display = 'block';
                                     container.style.transform = 'translateY(0px)';
+                                    scrollSpring.position = 0;
+                                    scrollSpring.finalPosition = 0;
+                                    scrollSpring.velocity = 0;
                                     lastCurrent = -1;
                                     lastAnimTime = null;
                                     highlightLyric();
